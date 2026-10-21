@@ -6,7 +6,7 @@ chain. That is correct and necessary as the final gate on `main`, but it's
 slow and costly to run on every push to every pull request or test branch.
 
 The `linuxFastLane` setting builds a project using
-[StefanMaron/MsDyn365Bc.On.Linux](https://github.com/StefanMaron/MsDyn365Bc.On.Linux)
+[aldevtools/MsDyn365Bc.On.Linux](https://github.com/aldevtools/MsDyn365Bc.On.Linux)
 (bc-linux) instead: it compiles AL source, publishes to a BC service tier
 running on Linux via Docker Compose, and runs AL unit tests - entirely on an
 `ubuntu-latest` runner, no Windows container involved. It's wired into both
@@ -87,7 +87,7 @@ the Windows build accepts (or vice versa).
   output from the standard Windows build.
 - **A small number of AL tests are known to fail on Linux BC.** See
   bc-linux's
-  [`KNOWN-LIMITATIONS.md`](https://github.com/StefanMaron/MsDyn365Bc.On.Linux/blob/master/KNOWN-LIMITATIONS.md)
+  [`KNOWN-LIMITATIONS.md`](https://github.com/aldevtools/MsDyn365Bc.On.Linux/blob/master/KNOWN-LIMITATIONS.md)
   for the current list (for example, tests that unconditionally delete the
   active session's user, or tests that require a UI context for controls
   like Camera/Barcode Scanner). These will show up red in the fast lane;

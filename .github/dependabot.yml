@@ -15,3 +15,13 @@ updates:
     - dependency-name: "microsoft/AL-Go-Actions/*"
   schedule:
     interval: weekly
+  cooldown:
+    default-days: 7
+- package-ecosystem: npm
+  directory: "/Actions"
+  allow:
+    - dependency-name: "@github/copilot"
+  schedule:
+    interval: weekly
+  cooldown:
+    default-days: 7
