@@ -94,11 +94,11 @@ gh workflow run "UpdateGitHubGoSystemFiles.yaml" -R <owner>/<repo> \
 ```
 This is a distinct scenario from "Re-triggering after a failed/stuck run" below — that section is about a run that itself failed; this one is about a run that *succeeded* but whose very next build is broken because of what it left behind. Not yet confirmed whether the second pass actually resolves the empty-project crash on its own, or whether it's masked by/entangled with a separate build-matrix bug for repos mixing fast-lane-eligible and ineligible projects (see below) — re-verify next time this comes up and update this note with the outcome.
 
-### Fast-lane publish step mangles app folder names containing spaces
+### Fast-lane publish step mangles app folder names containing spaces (fixed)
 
-Found 2026-08-27 onboarding `A-BC-Consulting-Group-Inc/LM-Energy-Partners`. The fast-lane container's publish step (`bc-linux/scripts/...`, inside the `ghcr.io/stefanmaron/msdyn365bc.on.linux/bc-runner` image — this lives in the separate `StefanMaron/MsDyn365Bc.On.Linux` repo, not in this AL-Go fork) builds its app filename from `$APP_DIRS`/`$TEST_APP_DIRS`, which are **space-joined lists of app folder paths**. The loop that walks them (`for d in $APP_DIRS $TEST_APP_DIRS; do ... done`) is unquoted, so plain bash word-splitting breaks any folder name that itself contains a space into multiple `$d` values. A project at `MainApps/Longhorn Midstream BC Extension` produced `missing: build/Longhorn.app` — `$d` was word-split down to just `MainApps/Longhorn`, and `basename` on that gives `Longhorn`.
+Found 2026-08-27 onboarding `A-BC-Consulting-Group-Inc/LM-Energy-Partners`: a project at `MainApps/Longhorn Midstream BC Extension` produced `missing: build/Longhorn.app`, because the fast lane split the space-joined `$APP_DIRS`/`$TEST_APP_DIRS` lists on spaces.
 
-This is a real bug in the bc-linux side of the fast lane (quote `$d`, or pass the list as a properly delimited/array-safe structure instead of space-joined) — not something wrong with the target repo. Until it's fixed there: an app folder name is local to the consuming repo (freely chosen, unrelated to the app's actual `id`/`name`/`publisher` in `app.json`), so renaming the folder to remove the space is a safe, low-risk workaround for a specific repo, but doesn't fix it for anyone else onboarding a repo with the same pattern. Prefer fixing bc-linux's script if you have access; only rename a target repo's folder as a stopgap.
+Fixed in bc-linux (`aldevtools/MsDyn365Bc.On.Linux`): its reusable workflow `bc-test-from-source.yml` now reads the app folder lists line by line, so folder names with spaces survive. A repo on a bc-linux pin from before that fix still has the problem; update AL-Go System Files to get the current pin. No folder rename is needed any more.
 
 ### Re-triggering "Update AL-Go System Files" after a failed/stuck run
 
