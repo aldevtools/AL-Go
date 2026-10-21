@@ -31,6 +31,7 @@ Two `Join-Path` calls in the same build-dimension code - staging a linuxFastLane
 A project set up to compile without publishing anything (`useCompilerFolder: true` or `doNotPublishApps: true`) has nothing for the fast lane to publish or test, so `linuxFastLane` is now ignored for it - it keeps building on the standard Windows pipeline instead, with a warning in the log. This means an org- or repo-wide `linuxFastLane: true` default is safe to turn on even when some projects are deliberately compile-only (for example, apps that depend on AppSource apps that can only be compiled against, not installed for testing).
 
 Both `PullRequestHandler` and `CICD` now run a Linux fast lane job, so `linuxFastLane: true` applies to pull request builds and to regular push/manual-dispatch CI/CD builds alike. `CreateRelease` and every other workflow still ignore `linuxFastLane` - including through a repo- or org-wide default with no per-workflow scoping - `DetermineProjectsToBuild` folds those projects back into the standard Windows build dimension for every workflow except `PullRequestHandler` and `CICD`, so a broad `linuxFastLane` default can no longer make a project vanish from a build.
+
 ### Copilot code review for AL pull requests
 
 AL-Go repositories can now opt in to AI-powered review of AL pull requests, with configurable models, target branches, excluded authors, and BCQuality skills and knowledge. See [Enable Copilot code review](Scenarios/Agents/CopilotCodeReview.md) for setup, organization policy requirements, and operational details.
