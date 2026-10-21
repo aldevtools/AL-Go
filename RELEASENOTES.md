@@ -31,6 +31,58 @@ Two `Join-Path` calls in the same build-dimension code - staging a linuxFastLane
 A project set up to compile without publishing anything (`useCompilerFolder: true` or `doNotPublishApps: true`) has nothing for the fast lane to publish or test, so `linuxFastLane` is now ignored for it - it keeps building on the standard Windows pipeline instead, with a warning in the log. This means an org- or repo-wide `linuxFastLane: true` default is safe to turn on even when some projects are deliberately compile-only (for example, apps that depend on AppSource apps that can only be compiled against, not installed for testing).
 
 Both `PullRequestHandler` and `CICD` now run a Linux fast lane job, so `linuxFastLane: true` applies to pull request builds and to regular push/manual-dispatch CI/CD builds alike. `CreateRelease` and every other workflow still ignore `linuxFastLane` - including through a repo- or org-wide default with no per-workflow scoping - `DetermineProjectsToBuild` folds those projects back into the standard Windows build dimension for every workflow except `PullRequestHandler` and `CICD`, so a broad `linuxFastLane` default can no longer make a project vanish from a build.
+### Copilot code review for AL pull requests
+
+AL-Go repositories can now opt in to AI-powered review of AL pull requests, with configurable models, target branches, excluded authors, and BCQuality skills and knowledge. See [Enable Copilot code review](Scenarios/Agents/CopilotCodeReview.md) for setup, organization policy requirements, and operational details.
+
+### Issues
+
+- Issue 2398 - Preserve dependency paths containing commas when passing a single app to Run-AlPipeline. Download Project Dependencies now warns with the complete path if a resolved dependency file is missing, without changing the output lists.
+
+- Issue 2390 - AnalyzeTests no longer crashes under strict mode when a page scripting test suite contains both passed and failed tests, preserving the failure summary.
+
+- Issue 2387 - Deployment environment discovery now paginates GitHub API results, so Publish To Environment and CI/CD can discover environments beyond the first 30 and read their branch policies.
+
+## v10.0
+
+### AL-Go Telemetry Enhancements
+
+AL-Go now includes `RepositoryIsFork` and `GitHubHostingType` in Microsoft and partner telemetry. These identify whether the workflow repository is a fork and whether it runs on GitHub.com, GitHub Enterprise Cloud with data residency (`*.ghe.com`), or GitHub Enterprise Server. GitHub.com includes Enterprise Cloud customers hosted there; this classification does not identify subscription plans or send server hostnames. Unavailable metadata is reported as `Unknown`.
+
+Action telemetry now includes structured `ActionName` and `ActionConclusion` dimensions. The action wrapper reports `Success` or `Failure`, allowing consumers to group action outcomes without parsing message text. Handled error events do not independently mark the action as failed.
+
+### Allow pre-release packages as NuGet dependencies
+
+AL-Go now supports including pre-release versions of Business Central app packages from NuGet feeds. To enable this, append `-allowPrerelease` to the `nuGetFeedSelectMode` setting in your project configuration. For example, `LatestMatching-allowPrerelease` will select the latest matching version of the package, including pre-release versions.
+
+### New `unpublishOldVersions` setting for deployment
+
+The `DeployTo<environment>` setting now supports an opt-in `unpublishOldVersions` boolean (default `false`). When enabled, AL-Go unpublishes old, uninstalled versions of the deployed apps from the environment after a successful deployment, keeping Extension Management clean. This only applies to PTE deployments (Scope PTE / automation API), uses the Automation API v2.0 `Microsoft.NAV.unpublish` action, and is non-fatal (failures are reported as warnings and never fail the deployment).
+
+### Expanded AL-Go telemetry dashboard
+
+The starter Azure Data Explorer dashboard now includes dedicated views for workflow reliability, run exploration, test quality, workflow duration, runner efficiency, and AL-Go maintenance. It also provides repository, workflow, branch, and repository-type filtering, clearer empty states, and repository-level runtime supportability information.
+
+### Create Release checks AL-Go system file updates separately
+
+The `Create Release` workflow now checks for available AL-Go system file updates in a separate job that runs in parallel with and independently of release creation. This allows the release to be created without waiting for the update check and can reduce the overall workflow duration.
+
+### Local development environments use cacheImageName
+
+localDevEnv now passes the configured cacheImageName to Run-AlPipeline, allowing BcContainerHelper to reuse artifact-specific images.
+To retain the previous behavior, set `cacheImageName` to an empty string in .AL-Go/localDevEnv.settings.json.
+
+### Issues
+
+- Workflow finalization telemetry failures, including GitHub API errors, no longer fail an otherwise successful workflow.
+- Issue 2358 - Update AL-Go System Files no longer creates a commit or pull request when only the template SHA would change, avoiding unnecessary CI/CD runs.
+- Issue 2370 - Retry CI/CD baseline discovery when no eligible run is returned, logging result counts for diagnostics and URL-encoding query values so discovery URLs render correctly in logs. The existing full-build fallback is preserved when no baseline is found after retries.
+- Issue 2113 - Fix device-login initialization in Create Online Dev. Environment and Publish To Environment when authentication secrets are unavailable.
+- Issue 2375 - Project/App folder with umlaut breaks incremental build check
+- Issue 2381 - Dependency artifacts from the current build are not downloaded when the branch name contains glob-special characters (e.g. `,`), silently falling back to baseline artifacts
+- Issue 2389 - URLs in localdevenv and the settings schema are wrong when running a self-hosted AL-Go from a fork
+
+## v9.2
 
 ### New `doNotPerformUpgrade` setting
 
@@ -57,10 +109,16 @@ As part of this, the warning comparison now also parses the raw AL compiler outp
 - Reference documentation no longer fails with "InvalidTocInclude: Referenced TOC file ... does not exist" for apps whose name contains an underscore (e.g. `_Exclude_*` apps). The toc.yml folder names are now derived using the same rules as the aldoc tool, which keeps underscores instead of turning them into hyphens.
 - Issue 2319 - Under workspace compilation, `enableCodeAnalyzersOnTestApps: false` now also disables custom analyzers (`customCodeCops`) for test apps and BCPT test apps, not just the built-in code analyzers.
 - Issue 2267 - `AppSourceCop.json` is now created for test apps when `enableCodeAnalyzersOnTestApps` is true.
+- Issue 2320 - Deliver to NuGet of release workflow failing with app and test app
+- Issue 2337 - Incremental builds: skipped projects re-publish Default-mode apps into ALL buildMode-specific artifacts
 
 ### Valid SARIF URIs for file paths containing spaces
 
 `ProcessALCodeAnalysisLogs` now URI-encodes each segment of the artifact location path when writing SARIF (for example `1.Setup Data/Foo.al` becomes `1.Setup%20Data/Foo.al`). Paths that contain spaces or other characters that are not valid in a URI previously caused `github/codeql-action/upload-sarif` to log "is not a valid URI" warnings and could prevent AL code scanning alerts from mapping to the correct files. The `/` path separators are preserved so the path structure is unchanged.
+
+### AL alerts for the workspace compilation build
+
+The `trackALAlertsInGitHub` setting now also works when `workspaceCompilation` (preview) is enabled. When both are turned on, AL-Go passes `--errorlogdirectory` to `altool workspace compile` so each project emits an `*.errorLog.json` diagnostics file into `.buildartifacts/ErrorLogs/`, which is processed into SARIF and surfaced as code scanning alerts — matching the classic Run-AlPipeline behavior. If the consumed compiler version does not yet support `--errorlogdirectory`, the option is skipped and a warning is logged (the rest of the build is unaffected).
 
 ## v9.1
 
