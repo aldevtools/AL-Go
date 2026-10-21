@@ -32,6 +32,8 @@ A project set up to compile without publishing anything (`useCompilerFolder: tru
 
 Both `PullRequestHandler` and `CICD` now run a Linux fast lane job, so `linuxFastLane: true` applies to pull request builds and to regular push/manual-dispatch CI/CD builds alike. `CreateRelease` and every other workflow still ignore `linuxFastLane` - including through a repo- or org-wide default with no per-workflow scoping - `DetermineProjectsToBuild` folds those projects back into the standard Windows build dimension for every workflow except `PullRequestHandler` and `CICD`, so a broad `linuxFastLane` default can no longer make a project vanish from a build.
 
+The Linux fast lane now calls bc-linux at commit `fa63b7c390cdb32a4a603bb3e0a186dcb9a1e814` (previously `072a800527ab960f9a7b19432e7db04c25d76e12`). That bc-linux commit moves its repository references and new container images to the aldevtools organization (`ghcr.io/aldevtools`). Repos pick this up with their next "Update AL-Go System Files" run.
+
 ### Copilot code review for AL pull requests
 
 AL-Go repositories can now opt in to AI-powered review of AL pull requests, with configurable models, target branches, excluded authors, and BCQuality skills and knowledge. See [Enable Copilot code review](Scenarios/Agents/CopilotCodeReview.md) for setup, organization policy requirements, and operational details.

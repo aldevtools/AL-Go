@@ -16,6 +16,13 @@ triggered by a PR or a push. It's meant as a fast, cheap gate for pull
 requests and non-production branches (a dedicated test branch, for example),
 not a replacement for the full pipeline on `main`.
 
+The templates' `_BuildALGoProjectLinux.yaml` calls bc-linux's
+`bc-test-from-source.yml` reusable workflow at a fixed commit, so a change in
+bc-linux reaches AL-Go repos only when this pin moves. The pin is now
+`fa63b7c390cdb32a4a603bb3e0a186dcb9a1e814`, the bc-linux commit that points
+the workflow and its container images at the aldevtools organization
+(`ghcr.io/aldevtools`).
+
 ## Enabling it
 
 Set the `linuxFastLane` setting to `true`. Combine it with AL-Go's existing
