@@ -2973,4 +2973,36 @@ Describe "GetFilesToUpdate (real template)" {
         $excludedTestNextMajor | Should -Not -BeNullOrEmpty
         $excludedTestNextMajor.Count | Should -Be 1
     }
+
+    It 'ModifyBuildWorkflows duplicates BuildLinux and PublishLinuxArtifacts per level and chains them' {
+        # A project on level 2 can depend on a project built by the Linux fast lane on level 1, so level 2
+        # must wait for level 1's fast lane jobs, and fast lane projects on level 2 need a job of their own.
+        foreach ($template in @('PullRequestHandler', 'CICD')) {
+            $templateFile = Join-Path $PSScriptRoot "..\Templates\Per Tenant Extension\.github\workflows\$template.yaml" -Resolve
+            $yaml = [Yaml]::Load($templateFile)
+
+            ModifyBuildWorkflows -yaml $yaml -depth 2 -includeBuildPP $false
+
+            $yaml.Get('jobs:/BuildLinux1:/') | Should -Not -BeNullOrEmpty -Because "$template should get a BuildLinux1 job"
+            $yaml.Get('jobs:/PublishLinuxArtifacts1:/') | Should -Not -BeNullOrEmpty -Because "$template should get a PublishLinuxArtifacts1 job"
+
+            ($yaml.Get('jobs:/BuildLinux1:/').content -join "`n") | Should -Match ([regex]::Escape('buildOrderJson)[0].buildDimensionsLinux'))
+            ($yaml.Get('jobs:/BuildLinux:/').content -join "`n") | Should -Match ([regex]::Escape('buildOrderJson)[1].buildDimensionsLinux'))
+            ($yaml.Get('jobs:/PublishLinuxArtifacts:/').content -join "`n") | Should -Match ([regex]::Escape('buildOrderJson)[1].buildDimensionsLinux'))
+            ($yaml.Get('jobs:/PublishLinuxArtifacts:/needs:').content -join "`n") | Should -Match ([regex]::Escape('BuildLinux ]'))
+
+            # Level 2 jobs (Build and BuildLinux) wait for everything on level 1
+            foreach ($job in @('Build', 'BuildLinux')) {
+                $needsLine = ($yaml.Get("jobs:/$($job):/needs:").content -join "`n")
+                foreach ($dep in @('Build1', 'BuildLinux1', 'PublishLinuxArtifacts1')) {
+                    $needsLine | Should -Match ([regex]::Escape($dep)) -Because "$template $job needs: should include $dep"
+                }
+                $ifLine = ($yaml.Get("jobs:/$($job):/if:").content -join "`n")
+                $ifLine | Should -Match ([regex]::Escape("needs.BuildLinux1.result == 'success'")) -Because "$template $job if: should wait on BuildLinux1"
+            }
+
+            # Level 1 depends on nothing but Initialization
+            ($yaml.Get('jobs:/BuildLinux1:/needs:').content -join "`n") | Should -Match ([regex]::Escape('needs: [ Initialization ]'))
+        }
+    }
 }
