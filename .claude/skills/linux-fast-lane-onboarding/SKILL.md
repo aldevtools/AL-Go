@@ -5,7 +5,7 @@ description: Onboard, audit, or revert the "Linux fast lane" (bc-linux-based fas
 
 # Linux Fast Lane — Onboarding, Fork Sync, and Revert
 
-The Linux fast lane is a fork feature on `aldevtools/AL-Go` (source: `github.com/aldevtools/AL-Go`, branch `feat/linux-fast-lane` as of 2026-08-07). It runs pull-request builds against a Linux BC container ([bc-linux](https://github.com/aldevtools/MsDyn365Bc.On.Linux)) instead of the full Windows pipeline — fast/cheap CI gate for PRs and test branches, never a replacement for `main`'s pipeline. Feature docs: `Scenarios/LinuxFastLane.md` in that repo.
+The Linux fast lane is a fork feature on `aldevtools/AL-Go` (source: `github.com/aldevtools/AL-Go`, `main`). It runs pull-request builds against a Linux BC container ([bc-linux](https://github.com/aldevtools/MsDyn365Bc.On.Linux)) instead of the full Windows pipeline — fast/cheap CI gate for PRs and test branches, never a replacement for `main`'s pipeline. Feature docs: `Scenarios/LinuxFastLane.md` in that repo.
 
 Three non-negotiable constraints (Stefan's words, 2026-08-07) govern every change here:
 
@@ -17,7 +17,10 @@ Three non-negotiable constraints (Stefan's words, 2026-08-07) govern every chang
 
 Canonical copy: `.claude/skills/linux-fast-lane-onboarding/SKILL.md` in `aldevtools/AL-Go` (this file). Stefan's local `~/.claude/skills/linux-fast-lane-onboarding` is a symlink to this file, so any Claude Code session anywhere on his machine sees it automatically. Anyone else working on a repo that already tracks this fork (i.e. has this file checked out under `.claude/skills/`) gets it for free too — Claude Code auto-discovers project-scoped skills. Point a fresh/cloud agent with no local access at this file's raw GitHub URL or its content directly if it can't see the local filesystem. **Edit this file, not a copy** — if you're working from the local symlink, you're already editing the canonical source; if you're on a checkout without the symlink, edit here and remember the change needs to reach `main` via a PR like any other change to this repo (see the mergeable-fork discipline below — this file is subject to the exact same rules).
 
-## Current state (verified 2026-08-07 — reverify before trusting on reuse)
+## Current state (verified 2026-08-07, updated 2026-10-23 — reverify before trusting on reuse)
+
+- **Build order levels are fixed (2026-10-23, `aldevtools/AL-Go` pull request "Build Linux fast lane projects on every build order level").** `BuildLinux` and `PublishLinuxArtifacts` run once per level, each level waits for all earlier levels' jobs. See "Build order levels" below. Repos need two "Update AL-Go System Files" runs to receive it.
+- **Compile-only projects on the NuGet path are verified end to end** (cashort bridge project, 2026-10-23): `workspaceCompilation` + `symbolsSource: nuGet` compiled in minutes in a pull request run next to a fast lane project.
 
 - **Deployed and live.** `feat/linux-fast-lane` merged into `aldevtools/AL-Go` `main` (PR #1, merge commit `7f21177b`). `aldevtools/AL-Go-PTE` and `aldevtools/AL-Go-AppSource` exist and are populated (as of `7f21177b`) — Actions references in their workflows correctly resolve to `aldevtools/AL-Go/Actions/<Name>@7f21177b`, and both contain `_BuildALGoProjectLinux.yaml`.
 - Deploy auth is wired on `aldevtools/AL-Go`: repo variable `APP_ID=1203592` + secret `PRIVATE_KEY`, sourced from the `GitHub App stefanmaronapp` 1Password item (vault `claude`). This lets `Deploy.yaml` push to the two template repos, but the app installation does **not** have "Administration: Read & write" account permission, so it **cannot create new repos** — if a repo needs (re)creating, do it manually first (`gh repo create <owner>/<repo> --public`) then rerun Deploy.
@@ -40,6 +43,8 @@ Either way, once deployed: check Actions references resolved to `aldevtools/AL-G
 **This never reaches downstream repos automatically.** An onboarded repo only picks up the new template content when *it* runs its own "Update AL-Go System Files" — manually, or on whatever `workflowSchedule`/org-level cron it has configured, and even then via a PR it still has to merge (not silent). Bumping something in `Templates/`/`Actions/` on this fork's `main` does NOT mean it's live for consumers yet.
 
 ## To onboard an existing managed repo to the fast lane
+
+Before changing a repo, read its org variable (`ALGoOrgSettings`, ask for the JSON if `gh` lacks `admin:org`). It may already contain `ConditionalSettings` that turn `linuxFastLane` on for pull requests and off for CICD on `main`. In that case a repo needs no `linuxFastLane` setting of its own, and a newly onboarded repo (cashort, 2026-10-23) got the fast lane from the org variable alone.
 
 The template repos are live — this is directly actionable now. Concrete runbook:
 
@@ -65,7 +70,7 @@ The template repos are live — this is directly actionable now. Concrete runboo
    ]
    ```
 4. Confirm the project's `application`/`platform` in `app.json` (or `artifact` setting) is pinned to a concrete BC version, not `latest` — needed for predictable fast-lane results, see `Scenarios/LinuxFastLane.md`.
-5. Let the PR's own CI run (`Pull Request Build`/`PullRequestHandler` workflow) — this is the real validation, no separate throwaway PR needed since the onboarding PR itself triggers it. Confirm the new `BuildLinux` job actually appears and passes before merging. If it fails, check whether the failure is fast-lane-specific (e.g. a known Linux-BC test limitation, see `Scenarios/LinuxFastLane.md`) vs. a real regression before troubleshooting further.
+5. Let the PR's own CI run (`Pull Request Build`/`PullRequestHandler` workflow) — this is the real validation, no separate throwaway PR needed since the onboarding PR itself triggers it. Confirm the new `BuildLinux` job actually appears and passes before merging. If it fails, check whether the failure is fast-lane-specific (e.g. a known Linux-BC test limitation, see `Scenarios/LinuxFastLane.md`) vs. a real regression before troubleshooting further. Also confirm that every project in the repo has its own build job in the run: a green status check can hide a project that was planned but never built (before the build order levels fix, a dependent project at the second level was silently skipped on pull requests).
 
 ### If a repo has both fast-lane-eligible and compile-only projects
 
@@ -76,9 +81,23 @@ The actual fast path for a compile-only project is a **separate** opt-in, not `l
 "workspaceCompilation": { "enabled": true },
 "symbolsSource": "nuGet"
 ```
-`symbolsSource: nuGet` resolves only the dependency symbols + AL compiler from NuGet/MSSymbols instead of downloading the BC artifact — this is what actually removes the slow part. Requires `workspaceCompilation.enabled: true`, and per the settings schema is **not supported for apps targeting OnPrem or Internal, or with a `vsixFile` download URL** — check every app's `app.json` `target` field (absent = defaults to Cloud, which is fine) before setting this. Not yet verified end-to-end on a real managed repo — confirm the build time actually drops before treating this as proven guidance elsewhere.
+`symbolsSource: nuGet` resolves only the dependency symbols + AL compiler from NuGet/MSSymbols instead of downloading the BC artifact — this is what actually removes the slow part. Requires `workspaceCompilation.enabled: true`, and per the settings schema is **not supported for apps targeting OnPrem or Internal, or with a `vsixFile` download URL** — check every app's `app.json` `target` field (absent = defaults to Cloud, which is fine) before setting this. Verified end to end on cashort (2026-10-23): a compile-only bridge project built with `altool workspace compile` and NuGet symbols next to a fast lane project.
+
+Things that differ for a compile-only project:
+- Do not list `customCodeCops` and do not add `PipelineInitialize.ps1`. The analyzer download hook does not run on this path, and missing DLLs fail the build with `AL1006`. The workflow's hook step is `.AL-Go/BuildInitialize.ps1`.
+- A dependency app with no NuGet package (customer or ISV app) goes in a committed folder (for example `dependencies/` with a `.gitignore` exception) and in `installApps`. A relative path resolves against the project folder (`../dependencies/<file>.app` worked one level down).
+- Workspace compilation looks every non-Microsoft dependency up on NuGet first and logs "Could not find a NuGet package ... If this app isn't published to NuGet, ignore this warning". That warning is expected for apps supplied through `installApps` or built by another project in the same run.
 
 **This can't be defaulted org-wide the way `linuxFastLane` often is.** An org-level `ALGoOrgSettings` GitHub Actions variable (optionally scoped with `ConditionalSettings` to specific branches/workflows) is a reasonable way to default `linuxFastLane` across every repo in an org, since it's a no-op wherever a project isn't fast-lane-eligible. `workspaceCompilation`/`symbolsSource: nuGet` can't be defaulted the same way — set it in the specific compile-only project's `<project>/.AL-Go/settings.json` inside its repo. Compile-only-ness is a per-project property (a multi-project repo will often have some projects that are fast-lane-eligible and others that are compile-only), so this one has to be scoped per project, not per org or per repo.
+
+### Build order levels (a project that depends on another project in the repo)
+
+With `useProjectDependencies`, AL-Go orders projects into levels (our generated workflows use two, `workflowDepth: 2`). The generated workflows have `Build1`/`Build` (Windows), `BuildLinux1`/`BuildLinux` and `PublishLinuxArtifacts1`/`PublishLinuxArtifacts` (fast lane), one set per level. Each level's jobs wait for all earlier levels' jobs, so a standard or compile-only project can depend on a fast lane project and finds its published app in the same run.
+
+- **Where the structure comes from:** the workflow files in `Templates/` are a one-level base. `CheckForUpdates` (`CheckForUpdates.HelperFunctions.ps1`) expands them per level when "Update AL-Go System Files" runs. A fix to job structure belongs in that script and its tests (`Tests/CheckForUpdates.Action.Test.ps1`), not only in the template YAML. Editing a generated workflow in a downstream repo only tests an idea; the next system files run replaces it.
+- **Old behavior (before 2026-10-23):** `BuildLinux` only read build order level one and `Build` for level two waited only for `Build1`. A project depending on a fast lane project started before the fast lane job finished and failed with `AL1022` for the main app's package. A fast lane project at level two was never built, and the status check stayed green.
+- **Known limitation:** a fast lane project that depends on another fast lane project at an earlier level can compile against the baseline build of that project, because dependency apps are staged before any build runs (see `Scenarios/LinuxFastLane.md`).
+- **If it shows again:** run "Update AL-Go System Files" on the branch (twice, see below) and compare `needs:` of `Build` and `BuildLinux` in `PullRequestHandler.yaml`.
 
 ### Switching `templateUrl` to a new fork commit requires running "Update AL-Go System Files" TWICE
 
@@ -88,11 +107,13 @@ Symptom when this bites: the PR/branch's very next CI build (the one that's supp
 ```bash
 gh workflow run "UpdateGitHubGoSystemFiles.yaml" -R <owner>/<repo> \
   --ref <the-branch-that-already-has-the-new-templateUrl> \
-  -f templateUrl="https://github.com/StefanMaron/AL-Go-PTE@main" \
+  -f templateUrl="https://github.com/aldevtools/AL-Go-PTE@main" \
   -f downloadLatest=true -f directCommit=true \
   -f includeBranches=<that-same-branch>
 ```
 This is a distinct scenario from "Re-triggering after a failed/stuck run" below — that section is about a run that itself failed; this one is about a run that *succeeded* but whose very next build is broken because of what it left behind. Not yet confirmed whether the second pass actually resolves the empty-project crash on its own, or whether it's masked by/entangled with a separate build-matrix bug for repos mixing fast-lane-eligible and ineligible projects (see below) — re-verify next time this comes up and update this note with the outcome.
+
+Second confirmation (2026-10-23, cashort): the first run, executed with the previous action pin, left the old job layout; the second run generated the per-level jobs. Settings that change how workflows are generated (`linuxFastLane`, project dependencies, `useProjectDependencies`) also call for another run after you change them. A run that commits nothing means the files already match the settings. The `includeBranches` input defaults to `main, test`, so pass the branch explicitly when you sync a feature branch.
 
 ### Fast-lane publish step mangles app folder names containing spaces (fixed)
 
@@ -114,6 +135,10 @@ Getting `directCommit` wrong here is the actual failure mode to watch for: leavi
 ### Multi-branch dispatches are independent — never cross-merge
 
 If the repo's `workflowSchedule`/multi-run config includes both `main` and `test` (or any other branch), a single `workflow_dispatch` produces **one PR per branch**, each on its own `update-al-go-system-files/<branch>/<timestamp>` branch. Treat these as fully separate onboardings sharing nothing but the trigger: never merge the `main`-targeted branch into `test` (or vice versa) to "save a step" — a repo's test-branch-contamination guard is liable to reject that merge direction anyway, and even where it wouldn't, it defeats the point of the two independent PRs. If a fix (like the compile-only `workspaceCompilation` setting above) is needed on both, apply it to both branches separately.
+
+## Reporting a problem with the fork
+
+`aldevtools/AL-Go` has issues disabled. File an issue on `aldevtools/AL-Go-PTE` (issues enabled) and name the affected template or action files, or open a pull request on `aldevtools/AL-Go` directly. Issue text on these public repositories must not contain customer names.
 
 ## To revert a repo to stock Microsoft AL-Go
 
