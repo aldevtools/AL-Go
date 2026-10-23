@@ -87,7 +87,7 @@ jobs:
     name: ${{ inputs.projectName }} (${{ inputs.buildMode }}, Linux fast lane)
     # Pinned to a specific commit (not @master) so an upstream change in
     # bc-linux can't silently break this repo's PR gate.
-    uses: aldevtools/MsDyn365Bc.On.Linux/.github/workflows/bc-test-from-source.yml@fa63b7c390cdb32a4a603bb3e0a186dcb9a1e814
+    uses: aldevtools/MsDyn365Bc.On.Linux/.github/workflows/bc-test-from-source.yml@352eb0e3be1123610a51baf56c7e5d8b33341a79
     with:
       bc_version: ${{ inputs.bcVersion != '' && inputs.bcVersion || '27.5' }}
       bc_country: ${{ inputs.bcCountry }}
