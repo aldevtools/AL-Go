@@ -84,6 +84,20 @@ the Windows build accepts (or vice versa).
   `PublishLinuxArtifacts` job that re-shapes the plain artifact bc-linux
   uploads. This is what lets `Deploy`/`Deliver` find and use a Linux fast
   lane project's apps exactly like they find `Build`'s.
+- Build order levels. When a project depends on another project in the repo,
+  `BuildLinux` and `PublishLinuxArtifacts` run once per level, like `Build`
+  does. Each level waits for the `Build`, `BuildLinux` and
+  `PublishLinuxArtifacts` jobs of all earlier levels, so a standard-pipeline
+  project can depend on a fast lane project. The pull request workflow runs
+  `PublishLinuxArtifacts` too, for the same reason.
+
+## Known limitation
+
+A fast lane project that depends on another fast lane project at an earlier
+level does not get that project's freshly built app. The `Initialization` job
+stages dependency apps before any build has run, so it falls back to the last
+successful baseline build. If the dependency's API changed in the same pull
+request, the dependent project can fail to compile against the old app.
 
 ## What's out of scope
 

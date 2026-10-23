@@ -215,32 +215,39 @@ function ModifyBuildWorkflows {
     # while buildDimensionsCount is 0 (every project on this depth went to the fast lane). Gating on
     # projectsCount would dispatch this job anyway with nothing real to build.
     $newBuild = @()
+    $newBuildLinux = @()
+    $newPublishLinux = @()
     for($index = 0; $index -lt $depth; $index++) {
         # All build job needs to have a dependency on the Initialization job
         $needs = @('Initialization')
-        if ($index -eq 0) {
-            # First build job needs to have a dependency on the Initialization job only
-            # Example (depth 1):
-            #    needs: [ Initialization ]
-            #    if: (!failure()) && (!cancelled()) && fromJson(needs.Initialization.outputs.buildOrderJson)[0].buildDimensionsCount > 0
-            $if = "if: (!failure()) && (!cancelled()) && fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsCount > 0"
-        }
-        else {
-            # Subsequent build jobs needs to have a dependency on all previous build jobs
+        $ifpart = ""
+        if ($index -gt 0) {
+            # Subsequent build jobs needs to have a dependency on all previous build jobs, including the
+            # Linux fast lane jobs (BuildLinux/PublishLinuxArtifacts) of the previous levels: a project on this
+            # level can depend on a project that was built by the fast lane, so its apps must exist first.
             # Example (depth 2):
-            #    needs: [ Initialization, Build1 ]
-            #    if: (!failure()) && (!cancelled()) && (needs.Build1.result == 'success' || needs.Build1.result == 'skipped') && fromJson(needs.Initialization.outputs.buildOrderJson)[0].buildDimensionsCount > 0
+            #    needs: [ Initialization, Build1, BuildLinux1, PublishLinuxArtifacts1 ]
+            #    if: (!failure()) && (!cancelled()) && (needs.Build1.result == 'success' || needs.Build1.result == 'skipped') && ... && fromJson(needs.Initialization.outputs.buildOrderJson)[1].buildDimensionsCount > 0
             # Another example (depth 3):
-            #    needs: [ Initialization, Build2, Build1 ]
-            #    if: (!failure()) && (!cancelled()) && (needs.Build2.result == 'success' || needs.Build2.result == 'skipped') && (needs.Build1.result == 'success' || needs.Build1.result == 'skipped') && fromJson(needs.Initialization.outputs.buildOrderJson)[0].buildDimensionsCount > 0
+            #    needs: [ Initialization, Build2, Build1, ... ]
             $newBuild += @('')
-            $ifpart = ""
             $index..1 | ForEach-Object {
                 $needs += @("Build$_")
                 $ifpart += " && (needs.Build$_.result == 'success' || needs.Build$_.result == 'skipped')"
+                if ($buildLinux) {
+                    $needs += @("BuildLinux$_")
+                    $ifpart += " && (needs.BuildLinux$_.result == 'success' || needs.BuildLinux$_.result == 'skipped')"
+                }
+                if ($publishLinuxArtifacts) {
+                    $needs += @("PublishLinuxArtifacts$_")
+                    $ifpart += " && (needs.PublishLinuxArtifacts$_.result == 'success' || needs.PublishLinuxArtifacts$_.result == 'skipped')"
+                }
             }
-            $if = "if: (!failure()) && (!cancelled())$ifpart && fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsCount > 0"
         }
+        # Example (depth 1):
+        #    needs: [ Initialization ]
+        #    if: (!failure()) && (!cancelled()) && fromJson(needs.Initialization.outputs.buildOrderJson)[0].buildDimensionsCount > 0
+        $if = "if: (!failure()) && (!cancelled())$ifpart && fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsCount > 0"
 
         # Replace the if:, the needs: and the strategy/matrix/project: in the build job with the correct values
         $build.Replace('if:', $if)
@@ -248,19 +255,42 @@ function ModifyBuildWorkflows {
         $build.Replace('strategy:/matrix:/include:',"include: `${{ fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensions }}")
 
         # Last build job is called build, all other build jobs are called build1, build2, etc.
-        if ($depth -eq ($index + 1)) {
-            $newBuild += @("Build:")
-        }
-        else {
-            $newBuild += @("Build$($index + 1):")
-        }
+        $suffix = if ($depth -eq ($index + 1)) { '' } else { "$($index + 1)" }
+        $newBuild += @("Build$($suffix):")
 
         # Add the content of the calculated build job to the new build job list with an indentation of 2 spaces
         $build.content | ForEach-Object { $newBuild += @("  $_") }
+
+        if ($buildLinux) {
+            # Same dependencies as the Windows build job of this level (the Linux fast lane build of a
+            # level must also wait for the Windows build jobs of the previous levels)
+            $linuxIf = "if: (!failure()) && (!cancelled())$ifpart && fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsLinuxCount > 0"
+            $buildLinux.Replace('if:', $linuxIf)
+            $buildLinux.Replace('needs:', "needs: [ $($needs -join ', ') ]")
+            $buildLinux.Replace('strategy:/matrix:/include:',"include: `${{ fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsLinux }}")
+            if ($index -gt 0) { $newBuildLinux += @('') }
+            $newBuildLinux += @("BuildLinux$($suffix):")
+            $buildLinux.content | ForEach-Object { $newBuildLinux += @("  $_") }
+        }
+
+        if ($publishLinuxArtifacts) {
+            $publishLinuxArtifacts.Replace('needs:', "needs: [ Initialization, BuildLinux$suffix ]")
+            $publishLinuxArtifacts.Replace('if:', "if: (!failure()) && (!cancelled()) && fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsLinuxCount > 0")
+            $publishLinuxArtifacts.Replace('strategy:/matrix:/include:',"include: `${{ fromJson(needs.Initialization.outputs.buildOrderJson)[$index].buildDimensionsLinux }}")
+            if ($index -gt 0) { $newPublishLinux += @('') }
+            $newPublishLinux += @("PublishLinuxArtifacts$($suffix):")
+            $publishLinuxArtifacts.content | ForEach-Object { $newPublishLinux += @("  $_") }
+        }
     }
 
     # Replace the entire build: job with the new build job list
     $yaml.Replace('jobs:/Build:', $newBuild)
+    if ($buildLinux) {
+        $yaml.Replace('jobs:/BuildLinux:', $newBuildLinux)
+    }
+    if ($publishLinuxArtifacts) {
+        $yaml.Replace('jobs:/PublishLinuxArtifacts:', $newPublishLinux)
+    }
 
     if (!$includeBuildPP -and $buildPP) {
         # Remove the BuildPP job from the workflow
@@ -273,9 +303,9 @@ function ModifyBuildWorkflows {
 
     $needs += @("Build")
     $ifpart += " && (needs.Build.result == 'success' || needs.Build.result == 'skipped')"
-    # BuildLinux/PublishLinuxArtifacts aren't part of the per-depth build loop above (the Linux fast
-    # lane doesn't get split across dependency depths the way the Windows pipeline does), but Deploy/
-    # Deliver/PostProcess still need to wait on them - otherwise a Linux fast lane project's apps
+    # BuildLinux/PublishLinuxArtifacts are duplicated per depth like Build above (the last copy keeps the
+    # plain name and waits for all earlier ones), so Deploy/Deliver/PostProcess only need the last copy.
+    # They still need to wait on them - otherwise a Linux fast lane project's apps
     # might not exist yet when Deploy/Deliver run, and PostProcess would report success without ever
     # having looked at whether BuildLinux/PublishLinuxArtifacts succeeded.
     if ($buildLinux) {
