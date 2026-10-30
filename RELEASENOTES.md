@@ -1,3 +1,7 @@
+### Linux fast lane: test folders without .al files no longer fail the build
+
+AL-Go accepts a test folder that contains an app.json but no .al files. The Linux fast lane used to fail on such a folder because its test runner found no test codeunits. Test folders without any .al file are now left out of the Linux test run (an empty test app has nothing to run); the Windows pipeline is unchanged.
+
 ### New `symbolsSource` setting - build against symbols from NuGet instead of an artifact
 
 When compiling without a container, AL-Go builds a compiler folder from a Business Central artifact: ~2.2 GB of zips extracting to ~3.1 GB, of which a compile uses a few megabytes. Setting `symbolsSource: nuGet` (alongside `workspaceCompilation`) populates that folder from Microsoft's public NuGet feeds instead - the symbols your apps actually depend on from the MSSymbols feed, and the AL compiler and analyzers from nuget.org. That is ~23 MB downloaded rather than ~2.2 GB, and no artifact is fetched at all.
