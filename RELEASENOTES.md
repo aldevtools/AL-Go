@@ -1,3 +1,7 @@
+### Windows pipeline: projects without installApps/installTestApps no longer fail at "Installing test apps"
+
+On Windows PowerShell 5.1 (the default `githubRunnerShell`), an empty install list was parsed as a list with one empty entry. Run-AlPipeline then failed with "Cannot bind argument to parameter 'Path' because it is an empty string." Empty install lists now stay empty on both PowerShell editions. The fix for a single install app whose publisher name contains a comma is kept.
+
 ### Linux fast lane: test folders without .al files no longer fail the build
 
 AL-Go accepts a test folder that contains an app.json but no .al files. The Linux fast lane used to fail on such a folder because its test runner found no test codeunits. Test folders without any .al file are now left out of the Linux test run (an empty test app has nothing to run); the Windows pipeline is unchanged.
