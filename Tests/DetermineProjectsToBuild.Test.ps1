@@ -67,12 +67,16 @@ Describe "Get-ProjectsToBuild" {
         $projectDependencies | Should -BeOfType System.Collections.Hashtable
         $projectDependencies.Count | Should -BeExactly 0
 
-        # Build order should contain a single default entry with no projects and no build dimensions
+        # Build order should contain a single default entry with no projects and no build dimensions.
+        # The fork's ProtectEmptyBuildDimensions keeps one placeholder entry so strategy.matrix.include
+        # never gets an empty array; buildDimensionsCount carries the real count (0).
         $buildOrder.Count | Should -BeExactly 1
         $buildOrder[0] | Should -BeOfType System.Collections.Hashtable
         $buildOrder[0].projects | Should -BeExactly @()
         $buildOrder[0].projectsCount | Should -BeExactly 0
-        $buildOrder[0].buildDimensions.Count | Should -BeExactly 0
+        $buildOrder[0].buildDimensionsCount | Should -BeExactly 0
+        $buildOrder[0].buildDimensions.Count | Should -BeExactly 1
+        $buildOrder[0].buildDimensions[0].project | Should -BeExactly ''
     }
 
     It 'loads two independent projects with no build modes set' {
