@@ -67,12 +67,16 @@ Describe "Get-ProjectsToBuild" {
         $projectDependencies | Should -BeOfType System.Collections.Hashtable
         $projectDependencies.Count | Should -BeExactly 0
 
-        # Build order should contain a single default entry with no projects and no build dimensions
+        # Build order should contain a single default entry with no projects and no build dimensions.
+        # The fork's ProtectEmptyBuildDimensions keeps one placeholder entry so strategy.matrix.include
+        # never gets an empty array; buildDimensionsCount carries the real count (0).
         $buildOrder.Count | Should -BeExactly 1
         $buildOrder[0] | Should -BeOfType System.Collections.Hashtable
         $buildOrder[0].projects | Should -BeExactly @()
         $buildOrder[0].projectsCount | Should -BeExactly 0
-        $buildOrder[0].buildDimensions.Count | Should -BeExactly 0
+        $buildOrder[0].buildDimensionsCount | Should -BeExactly 0
+        $buildOrder[0].buildDimensions.Count | Should -BeExactly 1
+        $buildOrder[0].buildDimensions[0].project | Should -BeExactly ''
     }
 
     It 'loads two independent projects with no build modes set' {
@@ -1413,12 +1417,14 @@ Describe "Get-ProjectsToBuild" {
         New-Item -Path "$baseFolder/Project1/app/app.json" -type File -Force
         Set-Content -Path "$baseFolder/Project1/app/app.json" -Value (@{ id = [Guid]::NewGuid().ToString(); name = 'App'; publisher = 'Test'; version = '1.0.0.0'; dependencies = @() } | ConvertTo-Json)
         New-Item -Path "$baseFolder/Project1/testApp1/app.json" -type File -Force
+        New-Item -Path "$baseFolder/Project1/testApp1/Test.Codeunit.al" -Value 'codeunit 50100 Test { Subtype = Test; }' -type File -Force
         Set-Content -Path "$baseFolder/Project1/testApp1/app.json" -Value (@{
             id = [Guid]::NewGuid().ToString(); name = 'TestApp1'; publisher = 'Test'; version = '1.0.0.0'
             idRanges = @(@{ from = 50100; to = 50149 })
             dependencies = @(@{ id = '23de40a6-dfe8-4f80-80db-d70f83ce8caf'; publisher = 'Microsoft'; name = 'Test Runner'; version = '1.0.0.0' })
         } | ConvertTo-Json -Depth 99)
         New-Item -Path "$baseFolder/Project1/testApp2/app.json" -type File -Force
+        New-Item -Path "$baseFolder/Project1/testApp2/Test.Codeunit.al" -Value 'codeunit 50100 Test { Subtype = Test; }' -type File -Force
         Set-Content -Path "$baseFolder/Project1/testApp2/app.json" -Value (@{
             id = [Guid]::NewGuid().ToString(); name = 'TestApp2'; publisher = 'Test'; version = '1.0.0.0'
             idRanges = @(@{ from = 130450; to = 130459 })
@@ -1433,6 +1439,30 @@ Describe "Get-ProjectsToBuild" {
         $buildOrder[0].buildDimensionsLinux.Count | Should -BeExactly 1
         $dimension = $buildOrder[0].buildDimensionsLinux[0]
         $dimension.linuxCodeunitRange | Should -BeExactly '50100..50149|130450..130459'
+    }
+
+    It 'leaves test folders without .al files out of linuxTestAppDirs and linuxCodeunitRange' {
+        New-Item -Path "$baseFolder/Project1/.AL-Go/settings.json" -Value $(@{ linuxFastLane = $true } | ConvertTo-Json) -type File -Force
+        New-Item -Path "$baseFolder/Project1/app/app.json" -type File -Force
+        Set-Content -Path "$baseFolder/Project1/app/app.json" -Value (@{ id = [Guid]::NewGuid().ToString(); name = 'App'; publisher = 'Test'; version = '1.0.0.0'; dependencies = @() } | ConvertTo-Json)
+        foreach ($testFolder in @('testWithCode', 'testEmpty')) {
+            New-Item -Path "$baseFolder/Project1/$testFolder/app.json" -type File -Force
+            Set-Content -Path "$baseFolder/Project1/$testFolder/app.json" -Value (@{
+                id = [Guid]::NewGuid().ToString(); name = $testFolder; publisher = 'Test'; version = '1.0.0.0'
+                idRanges = @(@{ from = if ($testFolder -eq 'testWithCode') { 50100 } else { 60100 }; to = if ($testFolder -eq 'testWithCode') { 50149 } else { 60149 } })
+                dependencies = @(@{ id = '23de40a6-dfe8-4f80-80db-d70f83ce8caf'; publisher = 'Microsoft'; name = 'Test Runner'; version = '1.0.0.0' })
+            } | ConvertTo-Json -Depth 99)
+        }
+        New-Item -Path "$baseFolder/Project1/testWithCode/src/Test.Codeunit.al" -Value 'codeunit 50100 Test { Subtype = Test; }' -type File -Force
+
+        $alGoSettings = @{ fullBuildPatterns = @(); projects = @(); powerPlatformSolutionFolder = ''; useProjectDependencies = $false }
+        $env:Settings = ConvertTo-Json $alGoSettings -Depth 99 -Compress
+
+        $allProjects, $modifiedProjects, $projectsToBuild, $projectDependencies, $buildOrder = Get-ProjectsToBuild -baseFolder $baseFolder
+
+        $dimension = $buildOrder[0].buildDimensionsLinux[0]
+        $dimension.linuxTestAppDirs | Should -BeExactly 'Project1/testWithCode'
+        $dimension.linuxCodeunitRange | Should -BeExactly '50100..50149'
     }
 
     It 'leaves linuxCodeunitRange empty when a linuxFastLane project has no test apps' {

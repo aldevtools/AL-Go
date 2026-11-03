@@ -304,7 +304,18 @@ function CreateBuildDimensions {
             # ordinary, user-chosen local folder name, unrelated to the app's id/name/publisher),
             # and bc-test-from-source.yml's consuming loops split on newline for the same reason.
             $linuxAppDirs = @($resolvedSettings.appFolders | ForEach-Object { (Join-Path $project ($_ -replace '^\.[\\/]', '')).Replace('\','/') }) -join "`n"
-            $testFolderRelPaths = @($resolvedSettings.testFolders | ForEach-Object { $_ -replace '^\.[\\/]', '' })
+            # AL-Go accepts a test folder that has an app.json but no .al files (an empty test app, e.g. a
+            # placeholder). The Windows pipeline simply finds no tests in it, but the Linux fast lane's test
+            # runner fails on an app without test codeunits ("No test codeunits found" / "no tests ran").
+            # An empty test app has nothing to run, so leave it out of the Linux test list and codeunit range.
+            $testFolderRelPaths = @($resolvedSettings.testFolders | ForEach-Object { $_ -replace '^\.[\\/]', '' } | Where-Object {
+                $testFolderPath = Join-Path (Join-Path $baseFolder $project) $_
+                $hasAlFiles = [bool](Get-ChildItem -Path $testFolderPath -Filter '*.al' -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1)
+                if (-not $hasAlFiles) {
+                    Write-Host "::notice::Test folder '$_' of project $project contains no .al files; leaving it out of the Linux fast lane test run."
+                }
+                $hasAlFiles
+            })
             $linuxTestAppDirs = @($testFolderRelPaths | ForEach-Object { (Join-Path $project $_).Replace('\','/') }) -join "`n"
 
             # Scope the Linux fast lane's test-codeunit discovery to the range(s) each test app

@@ -1,3 +1,11 @@
+### Windows pipeline: projects without installApps/installTestApps no longer fail at "Installing test apps"
+
+On Windows PowerShell 5.1 (the default `githubRunnerShell`), an empty install list was parsed as a list with one empty entry. Run-AlPipeline then failed with "Cannot bind argument to parameter 'Path' because it is an empty string." Empty install lists now stay empty on both PowerShell editions. The fix for a single install app whose publisher name contains a comma is kept.
+
+### Linux fast lane: test folders without .al files no longer fail the build
+
+AL-Go accepts a test folder that contains an app.json but no .al files. The Linux fast lane used to fail on such a folder because its test runner found no test codeunits. Test folders without any .al file are now left out of the Linux test run (an empty test app has nothing to run); the Windows pipeline is unchanged.
+
 ### New `symbolsSource` setting - build against symbols from NuGet instead of an artifact
 
 When compiling without a container, AL-Go builds a compiler folder from a Business Central artifact: ~2.2 GB of zips extracting to ~3.1 GB, of which a compile uses a few megabytes. Setting `symbolsSource: nuGet` (alongside `workspaceCompilation`) populates that folder from Microsoft's public NuGet feeds instead - the symbols your apps actually depend on from the MSSymbols feed, and the AL compiler and analyzers from nuget.org. That is ~23 MB downloaded rather than ~2.2 GB, and no artifact is fetched at all.
@@ -33,6 +41,7 @@ A project set up to compile without publishing anything (`useCompilerFolder: tru
 Both `PullRequestHandler` and `CICD` now run a Linux fast lane job, so `linuxFastLane: true` applies to pull request builds and to regular push/manual-dispatch CI/CD builds alike. `CreateRelease` and every other workflow still ignore `linuxFastLane` - including through a repo- or org-wide default with no per-workflow scoping - `DetermineProjectsToBuild` folds those projects back into the standard Windows build dimension for every workflow except `PullRequestHandler` and `CICD`, so a broad `linuxFastLane` default can no longer make a project vanish from a build.
 
 The Linux fast lane now calls bc-linux at commit `352eb0e3be1123610a51baf56c7e5d8b33341a79` (previously `072a800527ab960f9a7b19432e7db04c25d76e12`). That bc-linux version moves its repository references and new container images to the aldevtools organization (`ghcr.io/aldevtools`). It also fixes `DotNet` and `MediaSet` handling of `TemporaryPath()` and the fr-FR group separator on BC 27 and 28. Repos pick this up with their next "Update AL-Go System Files" run.
+
 ### Separate test execution from RunPipeline (PREVIEW)
 
 A new `useSeparateTestAction` complex setting (default `{ "enabled": false, "testType": "" }`) runs normal tests (`testFolders`) in a dedicated `RunTests` action when `enabled` is `true`. The separate action is used when tests are built and enabled and the build uses one local container. Normal tests remain in `RunPipeline` for builds with `additionalCountries`, no published apps, or test-data import callbacks that would otherwise have no remaining RunPipeline test category. BCPT and page scripting tests remain in `RunPipeline`.
