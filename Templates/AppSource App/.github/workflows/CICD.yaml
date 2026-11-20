@@ -240,6 +240,7 @@ jobs:
       bcVersion: ${{ matrix.linuxBcVersion }}
       alToolVersion: ${{ matrix.linuxAlToolVersion }}
       bcCountry: ${{ matrix.linuxCountry }}
+      sqlImage: ${{ matrix.linuxSqlImage }}
       appDirs: ${{ matrix.linuxAppDirs }}
       testAppDirs: ${{ matrix.linuxTestAppDirs }}
       codeunitRange: ${{ matrix.linuxCodeunitRange }}

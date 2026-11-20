@@ -1479,6 +1479,23 @@ Describe "Get-ProjectsToBuild" {
         $buildOrder[0].buildDimensionsLinux[0].linuxCodeunitRange | Should -BeExactly ''
     }
 
+    It 'passes linuxSqlImage through to the Linux build dimension and defaults to empty' {
+        $image = 'ghcr.io/aldevtools/msdyn365bc.on.linux/mssql:2022-fts'
+        foreach ($case in @(@{ settings = @{ linuxFastLane = $true }; expected = '' }, @{ settings = @{ linuxFastLane = $true; linuxSqlImage = $image }; expected = $image })) {
+            New-Item -Path "$baseFolder/Project1/.AL-Go/settings.json" -Value ($case.settings | ConvertTo-Json) -type File -Force
+            New-Item -Path "$baseFolder/Project1/app/app.json" -type File -Force
+            Set-Content -Path "$baseFolder/Project1/app/app.json" -Value (@{ id = [Guid]::NewGuid().ToString(); name = 'App'; publisher = 'Test'; version = '1.0.0.0'; dependencies = @() } | ConvertTo-Json)
+
+            $alGoSettings = @{ fullBuildPatterns = @(); projects = @(); powerPlatformSolutionFolder = ''; useProjectDependencies = $false }
+            $env:Settings = ConvertTo-Json $alGoSettings -Depth 99 -Compress
+
+            $allProjects, $modifiedProjects, $projectsToBuild, $projectDependencies, $buildOrder = Get-ProjectsToBuild -baseFolder $baseFolder
+
+            $buildOrder[0].buildDimensionsLinux[0].Keys | Should -Contain 'linuxSqlImage'
+            $buildOrder[0].buildDimensionsLinux[0].linuxSqlImage | Should -BeExactly $case.expected
+        }
+    }
+
     It 'maps vsixFile to linuxAlToolVersion for a linuxFastLane project' {
         New-Item -Path "$baseFolder/Project1/app/app.json" -type File -Force
         Set-Content -Path "$baseFolder/Project1/app/app.json" -Value (@{ id = [Guid]::NewGuid().ToString(); name = 'App'; publisher = 'Test'; version = '1.0.0.0'; dependencies = @() } | ConvertTo-Json)

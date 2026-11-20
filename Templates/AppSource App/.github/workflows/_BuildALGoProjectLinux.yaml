@@ -42,6 +42,11 @@ on:
         required: false
         default: ''
         type: string
+      sqlImage:
+        description: SQL Server image for the bc-linux container, from the project's linuxSqlImage setting. Blank uses bc-linux's default. Apps that use OptimizeForTextSearch need the Full-Text Search image.
+        required: false
+        default: ''
+        type: string
       appDirs:
         description: Space-separated, repo-root-relative production app folders for this project
         required: false
@@ -92,6 +97,7 @@ jobs:
       bc_version: ${{ inputs.bcVersion != '' && inputs.bcVersion || '27.5' }}
       bc_country: ${{ inputs.bcCountry }}
       al_tool_version: ${{ inputs.alToolVersion }}
+      sql_image: ${{ inputs.sqlImage }}
       app_dirs: ${{ inputs.appDirs }}
       test_app_dirs: ${{ inputs.testAppDirs }}
       codeunit_range: ${{ inputs.codeunitRange != '' && inputs.codeunitRange || '1..2147483647' }}

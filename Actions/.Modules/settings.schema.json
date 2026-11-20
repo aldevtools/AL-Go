@@ -886,6 +886,10 @@
             "type": "boolean",
             "description": "Use the Linux BC fast lane (github.com/aldevtools/MsDyn365Bc.On.Linux) instead of the standard Windows container pipeline for this build. No signing, no BCPT tests, no page scripting tests. Combine with ConditionalSettings (branches/workflows) to scope it to specific branches or workflows. See https://aka.ms/ALGoSettings#linuxfastlane"
         },
+        "linuxSqlImage": {
+            "type": "string",
+            "description": "SQL Server image the Linux BC fast lane uses for its container. Empty (default) uses the bc-linux default image. Set it to ghcr.io/aldevtools/msdyn365bc.on.linux/mssql:2022-fts for apps that use OptimizeForTextSearch. Only applies when linuxFastLane is true. See https://aka.ms/ALGoSettings#linuxsqlimage"
+        },
         "trustMicrosoftNuGetFeeds": {
             "type": "boolean",
             "description": "Trust Microsoft NuGet feeds. See https://aka.ms/ALGoSettings#trustMicrosoftNuGetFeeds"
