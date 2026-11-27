@@ -171,6 +171,7 @@ function Set-RunNumberVersioning {
     - linuxFastLane: Whether this project should build via the Linux BC fast lane instead of the Windows pipeline
     - linuxBcVersion: The concrete BC version to use on the Linux fast lane (best-effort resolved from the artifact/country settings; empty if it couldn't be resolved)
     - linuxAlToolVersion: The AL compiler version policy for the Linux fast lane, mapped from the project's vsixFile setting ('' (default/matching), 'latest', or 'prerelease'); empty if vsixFile is a direct download URL, which can't be mapped to a policy keyword
+    - linuxSqlImage: The SQL Server image for the Linux fast lane, from the linuxSqlImage setting; empty (default) uses bc-linux's own default image
     - linuxAppDirs / linuxTestAppDirs: newline-separated, repo-root-relative app/test folders for the Linux fast lane (newline, not space, so a folder name that itself contains a space survives - see bc-test-from-source.yml)
     - linuxCodeunitRange: pipe-separated "from..to" span(s) built from the idRanges declared in each test app's app.json, used to scope the Linux fast lane's test-codeunit discovery; empty if no idRanges could be read (the fast lane then falls back to its own unbounded default)
     - linuxDependencySubdir: sanitized project name used as the subfolder under the LinuxFastLaneDependencies artifact holding this project's third-party (appDependencyProbingPaths) and same-repo project dependency .apps; empty if the project has none
@@ -476,6 +477,7 @@ function CreateBuildDimensions {
                 linuxBcVersion = $linuxBcVersion
                 linuxAlToolVersion = $linuxAlToolVersion
                 linuxCountry = $projectSettings.country
+                linuxSqlImage = [string]$projectSettings.linuxSqlImage
                 linuxAppDirs = $linuxAppDirs
                 linuxTestAppDirs = $linuxTestAppDirs
                 linuxCodeunitRange = $linuxCodeunitRange

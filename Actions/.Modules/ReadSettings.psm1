@@ -281,6 +281,7 @@ function GetDefaultSettings
         "doNotPublishApps"                              = $false
         "doNotSignApps"                                 = $false
         "linuxFastLane"                                 = $false
+        "linuxSqlImage"                                 = ""
         "configPackages"                                = @()
         "appSourceCopMandatoryAffixes"                  = @()
         "deliverToAppSource"                            = [ordered]@{

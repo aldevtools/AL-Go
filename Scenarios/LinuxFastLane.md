@@ -98,6 +98,23 @@ stages dependency apps before any build has run, so it falls back to the last
 successful baseline build. If the dependency's API changed in the same pull
 request, the dependent project can fail to compile against the old app.
 
+## Full-Text Search (`linuxSqlImage`)
+
+Apps that use `OptimizeForTextSearch` need a SQL Server image with
+Full-Text Search installed. The default bc-linux SQL image does not have it.
+Set `linuxSqlImage` in the project's settings:
+
+```json
+{
+  "linuxFastLane": true,
+  "linuxSqlImage": "ghcr.io/aldevtools/msdyn365bc.on.linux/mssql:2022-fts"
+}
+```
+
+The value goes to the `sql_image` input of bc-linux's reusable workflow. An
+empty value (the default) keeps bc-linux's own image. The setting has no
+effect unless `linuxFastLane` is true for the project.
+
 ## What's out of scope
 
 - **Code signing.** The fast lane never calls the `Sign` action.
