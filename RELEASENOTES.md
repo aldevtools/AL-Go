@@ -40,7 +40,7 @@ A project set up to compile without publishing anything (`useCompilerFolder: tru
 
 Both `PullRequestHandler` and `CICD` now run a Linux fast lane job, so `linuxFastLane: true` applies to pull request builds and to regular push/manual-dispatch CI/CD builds alike. `CreateRelease` and every other workflow still ignore `linuxFastLane` - including through a repo- or org-wide default with no per-workflow scoping - `DetermineProjectsToBuild` folds those projects back into the standard Windows build dimension for every workflow except `PullRequestHandler` and `CICD`, so a broad `linuxFastLane` default can no longer make a project vanish from a build.
 
-The Linux fast lane now calls bc-linux at commit `352eb0e3be1123610a51baf56c7e5d8b33341a79` (previously `072a800527ab960f9a7b19432e7db04c25d76e12`). That bc-linux version moves its repository references and new container images to the aldevtools organization (`ghcr.io/aldevtools`). It also fixes `DotNet` and `MediaSet` handling of `TemporaryPath()` and the fr-FR group separator on BC 27 and 28. Repos pick this up with their next "Update AL-Go System Files" run.
+The Linux fast lane now calls bc-linux at commit `85b4e7e2e6222a6b9cbda8e9c91d25f22c396774` (previously `352eb0e3be1123610a51baf56c7e5d8b33341a79`). That bc-linux version prefers the apps from the country artifact over the W1 copies in the platform artifact, so a country project no longer compiles against W1 symbols. It also fixes control add-in registration for apps published from package files, lets Contoso demo data load, and stores the login user name in upper case. Repos pick this up with their next "Update AL-Go System Files" run.
 
 ### Separate test execution from RunPipeline (PREVIEW)
 

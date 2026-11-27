@@ -19,7 +19,7 @@ not a replacement for the full pipeline on `main`.
 The templates' `_BuildALGoProjectLinux.yaml` calls bc-linux's
 `bc-test-from-source.yml` reusable workflow at a fixed commit, so a change in
 bc-linux reaches AL-Go repos only when this pin moves. The pin is now
-`352eb0e3be1123610a51baf56c7e5d8b33341a79`. Its workflow and container
+`85b4e7e2e6222a6b9cbda8e9c91d25f22c396774`. Its workflow and container
 images live in the aldevtools organization (`ghcr.io/aldevtools`).
 
 ## Enabling it
